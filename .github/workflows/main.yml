@@ -1,0 +1,35 @@
+name: Build with uv
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true  # 启用依赖缓存，加速后续构建
+
+      - name: Sync dependencies and create virtual environment
+        run: |
+          uv sync --all-extras --dev  # 如果你有 dev 依赖；若没有，可去掉 --dev
+
+      - name: Build executable with PyInstaller
+        run: |
+          # 激活 uv 创建的虚拟环境（Windows）
+          .\.venv\Scripts\Activate.ps1
+          pyinstaller --onefile --windowed --clean main.py
+
+      - name: Upload executable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: food-ordering-app-windows
+          path: dist/main.exe
+          retention-days: 7
