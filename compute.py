@@ -107,7 +107,7 @@ def create_order(file_path) -> Dict[int, Order]:
         workshop = row[('取餐车间', '取餐车间')]
         workshop_section = row[('车间-工段', '车间-工段')]
         if workshop == '总装车间':
-            take_out_point = workshop_section.split('一')[-1]
+            take_out_point = workshop_section
         else:
             take_out_point = row[('取餐点', '取餐点')]
 
