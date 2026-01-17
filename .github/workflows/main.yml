@@ -21,6 +21,11 @@ jobs:
         run: |
           uv sync --all-extras --dev  # 如果你有 dev 依赖；若没有，可去掉 --dev
 
+      # 安装PyInstaller
+      - name: Install PyInstaller
+        run: |
+          uv pip install pyinstaller
+
       - name: Build executable with PyInstaller
         run: |
           # 激活 uv 创建的虚拟环境（Windows）
