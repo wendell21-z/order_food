@@ -10,9 +10,9 @@ work_shop_to_pos = {
 
 
 class Bill:
-    def __init__(self, amount: int, balance: float, time, pos: str):
+    def __init__(self, amount: float, balance: float, time, pos: str):
         # 消费金额
-        self.amount = int(amount)
+        self.amount = float(amount)
         # 支付后余额
         self.balance = float(balance)
         # 发生时间
@@ -49,16 +49,31 @@ class Order:
         self.dishes: List[Dish] = []
         # 支付状态。 值小于0表示支付金额不足，值大于0表示支付金额超出
         self.pay_status = ''
+        # 总花费
+        self.total_pay: float = 0.0
+        # 菜品总价格
+        self.total_price: float = 0.0
         # 金额差值
-        self.amount_diff: float = 0
+        self.amount_diff: float = 0.0
         # 支付信息
         self.bills: List[Bill] = []
         # 余额
         self.balance = 0
 
+    def calc_money(self):
+        self.calc_total_pay()
+        self.calc_total_price()
+        self.calc_amount_diff()
+        self.calc_balance()
+
+    def calc_total_pay(self):
+        self.total_pay = sum([(-bill.amount) for bill in self.bills])
+
+    def calc_total_price(self):
+        self.total_price = sum([dish.num * dish.price for dish in self.dishes])
+
     def calc_amount_diff(self):
-        self.amount_diff = (sum([(-bill.amount) for bill in self.bills]) -
-                            sum([dish.num * dish.price for dish in self.dishes]))
+        self.amount_diff = (self.total_pay - self.total_price)
         if self.amount_diff < 0:
             self.pay_status = '支付金额不足'
         elif self.amount_diff > 0:
@@ -158,8 +173,9 @@ def add_bill_info(order_map: Dict[int, Order], file_path) -> List[ErrorBill]:
         order = order_map[work_no]
         work_shop = order.workshop
         order_pos = work_shop_to_pos[work_shop]
-        if bill_pos != order_pos:
-            continue
+        # TODO 按卡机过滤，暂时注释
+        # if bill_pos != order_pos:
+        #     continue
         order.bills.append(bill)
 
     return error_bills

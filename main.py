@@ -170,9 +170,9 @@ class MainWindow(QMainWindow):
         self.order_table = QTableWidget()
         self.order_table.setSortingEnabled(True)  # 开启排序功能
         self.order_table.setEditTriggers(QTableWidget.NoEditTriggers)  # 禁止编辑
-        self.order_table.setColumnCount(7)  # 工号、姓名、车间-工段、取餐点、支付状态、金额差值、余额
+        self.order_table.setColumnCount(9)
         self.order_table.setHorizontalHeaderLabels(
-            ['工号', '姓名', '车间-工段', '取餐点', '支付状态', '金额差值', '余额'])
+            ['工号', '姓名', '支付状态', '金额差值', '菜品金额', '支付金额', '车间-工段', '取餐点', '余额'])
         self.order_table.setSelectionBehavior(QTableWidget.SelectRows)  # 设置为行选择
         self.order_table.itemSelectionChanged.connect(self.on_order_selection_changed)  # 连接选择变化事件
 
@@ -199,8 +199,8 @@ class MainWindow(QMainWindow):
         # 菜品信息表格
         self.dish_table = QTableWidget()
         self.dish_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.dish_table.setColumnCount(3)  # 菜名、数量、单价
-        self.dish_table.setHorizontalHeaderLabels(['菜名', '数量', '单价'])
+        self.dish_table.setColumnCount(4)  # 菜名、数量、单价
+        self.dish_table.setHorizontalHeaderLabels(['菜名', '数量', '单价', '总额'])
         dish_group = QGroupBox("菜品详情")
         dish_layout = QVBoxLayout(dish_group)
         dish_layout.addWidget(self.dish_table)
@@ -209,7 +209,7 @@ class MainWindow(QMainWindow):
         self.bill_table = QTableWidget()
         self.bill_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.bill_table.setColumnCount(4)  # 消费金额、余额、发生时间、POS机
-        self.bill_table.setHorizontalHeaderLabels(['消费金额', '余额', '发生时间','POS机'])
+        self.bill_table.setHorizontalHeaderLabels(['消费金额', '余额', '发生时间', 'POS机'])
         bill_group = QGroupBox("账单详情")
         bill_layout = QVBoxLayout(bill_group)
         bill_layout.addWidget(self.bill_table)
@@ -299,7 +299,7 @@ class MainWindow(QMainWindow):
             return
 
         # 清空旧值
-        self.error_bills = []  # 清空旧值
+        self.error_bills.clear()
 
         try:
             # 导入必要的类和函数
@@ -311,8 +311,7 @@ class MainWindow(QMainWindow):
 
             # 计算每个订单的差额和余额
             for work_no, order in self.order_map.items():
-                order.calc_amount_diff()
-                order.calc_balance()
+                order.calc_money()
 
             # 更新表格显示
             self.update_order_table()
@@ -324,31 +323,40 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"处理文件时出错:\n{str(e)}")
 
-
     def update_order_table(self):
+
         """更新订单信息表格"""
         if not self.order_map:
             self.order_table.setRowCount(0)
             return
+        # 关闭排序
+        self.order_table.setSortingEnabled(False)
 
         self.order_table.setRowCount(len(self.order_map))
 
         for row, (work_no, order) in enumerate(self.order_map.items()):
             self.order_table.setItem(row, 0, NumericTableWidgetItem(order.work_no))
             self.order_table.setItem(row, 1, QTableWidgetItem(order.name))
-            self.order_table.setItem(row, 2, QTableWidgetItem(order.workshop_section))
-            self.order_table.setItem(row, 3, QTableWidgetItem(order.take_out_point))
 
             pay_status_item = QTableWidgetItem(order.pay_status)
             pay_status_item.setForeground(
                 QBrush(QColor(0, 128, 0) if order.pay_status == '正常' else QColor(255, 0, 0)))
-            self.order_table.setItem(row, 4, pay_status_item)
+            self.order_table.setItem(row, 2, pay_status_item)
 
-            self.order_table.setItem(row, 5, NumericTableWidgetItem(order.amount_diff))
-            self.order_table.setItem(row, 6, NumericTableWidgetItem(order.balance))
+            self.order_table.setItem(row, 3, NumericTableWidgetItem(order.amount_diff))
+            # 菜品总金额
+            self.order_table.setItem(row, 4, NumericTableWidgetItem(order.total_price))
+            # 支付总金额
+            self.order_table.setItem(row, 5, NumericTableWidgetItem(order.total_pay))
+
+            self.order_table.setItem(row, 6, QTableWidgetItem(order.workshop_section))
+            self.order_table.setItem(row, 7, QTableWidgetItem(order.take_out_point))
+            self.order_table.setItem(row, 8, NumericTableWidgetItem(order.balance))
+
+        self.order_table.setSortingEnabled(True)  # 开启排序功能
 
         # 调整列宽
-        self.order_table.resizeColumnsToContents()
+        # self.order_table.resizeColumnsToContents()
 
     def update_dish_table(self, order):
         """更新菜品信息表格"""
@@ -356,29 +364,36 @@ class MainWindow(QMainWindow):
             self.dish_table.setRowCount(0)
             return
 
+        self.dish_table.setSortingEnabled(False)
         self.dish_table.setRowCount(len(order.dishes))
 
         for row, dish in enumerate(order.dishes):
             self.dish_table.setItem(row, 0, QTableWidgetItem(dish.name))
             self.dish_table.setItem(row, 1, NumericTableWidgetItem(dish.num))
             self.dish_table.setItem(row, 2, NumericTableWidgetItem(dish.price))
+            self.dish_table.setItem(row, 3, NumericTableWidgetItem(dish.num * dish.price))
 
+        self.dish_table.setSortingEnabled(True)
         # 调整列宽
-        self.dish_table.resizeColumnsToContents()
+        # self.dish_table.resizeColumnsToContents()
 
     def update_statistics_table(self):
+        self.statistics_table.setSortingEnabled(False)
         self.statistics_table.setRowCount(len(self.statistics))
         for row, (workshop, point) in enumerate(self.statistics.keys()):
             self.statistics_table.setItem(row, 0, QTableWidgetItem(workshop))
             self.statistics_table.setItem(row, 1, QTableWidgetItem(point))
             self.statistics_table.setItem(row, 2, NumericTableWidgetItem(self.statistics[workshop, point]['price']))
+        self.statistics_table.setSortingEnabled(True)
 
     # 菜品数据量统计表
     def update_dish_count_table(self):
+        self.dish_count_table.setSortingEnabled(False)
         self.dish_count_table.setRowCount(len(self.dish_count))
         for row, (dish_name, count) in enumerate(self.dish_count.items()):
             self.dish_count_table.setItem(row, 0, QTableWidgetItem(dish_name))
             self.dish_count_table.setItem(row, 1, NumericTableWidgetItem(count))
+        self.dish_count_table.setSortingEnabled(True)
 
     # 订单详情表
     def update_bill_table(self, order):
@@ -387,16 +402,18 @@ class MainWindow(QMainWindow):
             self.bill_table.setRowCount(0)
             return
 
+        self.bill_table.setSortingEnabled(False)
         self.bill_table.setRowCount(len(order.bills))
 
         for row, bill in enumerate(order.bills):
             self.bill_table.setItem(row, 0, NumericTableWidgetItem(bill.amount))
             self.bill_table.setItem(row, 1, NumericTableWidgetItem(bill.balance))
             self.bill_table.setItem(row, 2, QTableWidgetItem(str(bill.time)))
-            self.bill_table.setItem(row, 2, QTableWidgetItem(str(bill.pos)))
+            self.bill_table.setItem(row, 3, QTableWidgetItem(str(bill.pos)))
 
+        self.bill_table.setSortingEnabled(True)
         # 调整列宽
-        self.bill_table.resizeColumnsToContents()
+        # self.bill_table.resizeColumnsToContents()
 
     # 无订单支付表
     def update_error_table(self):
@@ -405,6 +422,7 @@ class MainWindow(QMainWindow):
             self.error_table.setRowCount(0)
             return
 
+        self.error_table.setSortingEnabled(False)
         self.error_table.setRowCount(len(self.error_bills))
 
         for row, error_bill in enumerate(self.error_bills):
@@ -414,6 +432,8 @@ class MainWindow(QMainWindow):
             self.error_table.setItem(row, 3, NumericTableWidgetItem(error_bill.balance))
             self.error_table.setItem(row, 4, QTableWidgetItem(str(error_bill.time)))
             self.error_table.setItem(row, 5, QTableWidgetItem(error_bill.pos))
+
+        self.error_table.setSortingEnabled(True)
 
     def on_order_selection_changed(self):
         """当订单表格选中行变化时，更新右侧的dishes和bills表格"""
@@ -462,17 +482,20 @@ class MainWindow(QMainWindow):
                     row = [
                         order.work_no,
                         order.name,
-                        order.workshop_section,
-                        order.take_out_point,
                         order.pay_status,
                         order.amount_diff,
+                        order.total_price,
+                        order.total_pay,
+                        order.workshop_section,
+                        order.take_out_point,
                         order.balance,
                         '；'.join([f'{dish.name}<{dish.num}>' for dish in order.dishes])
                     ]
                     data.append(row)
 
                 # 获取表头
-                headers = ['工号', '姓名', '车间-工段', '取餐点', '支付状态', '金额差值', '余额', '菜品(数量)']
+                headers = ['工号', '姓名', '支付状态', '金额差值', '菜品金额', '支付金额', '车间-工段', '取餐点',
+                           '余额', '菜品(数量)']
                 df = pd.DataFrame(data, columns=headers)
 
                 # 保存到Excel
@@ -519,7 +542,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "请先上传订单信息！")
             return
 
-        self.order_map = {}  # 清空旧值
+        self.order_map.clear()  # 清空旧值
 
         # 导入必要的类和函数
         from compute import create_order
