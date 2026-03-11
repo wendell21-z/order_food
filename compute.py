@@ -123,6 +123,8 @@ def create_order(file_path) -> Dict[int, Order]:
         workshop_section = row[('车间-工段', '车间-工段')]
         if workshop == '总装车间':
             take_out_point = workshop_section
+        elif workshop == '涂装车间':
+            take_out_point = f'{row[('取餐点', '取餐点')]}-{workshop_section}'
         else:
             take_out_point = row[('取餐点', '取餐点')]
 
@@ -148,32 +150,35 @@ def add_bill_info(order_map: Dict[int, Order], file_path) -> List[ErrorBill]:
     # 筛选
     # 1. pos机 = YP_0031500002
     # 2. 业务种类 = 消费
-    df = df[df['业务种类'] == '消费']
+    if '业务种类' in df.columns:
+        df = df[df['业务种类'] == '消费']
 
     for index, row in df.iterrows():
         # 支付机号
-        bill_pos = row['POS机号']
+        bill_pos = row.get('POS机号') or row.get('设备编号', '')
         # 工号
         work_no_str = row['员工号']
         # 如果工号不能被转为int，说明不是公司员工，跳过
         if not work_no_str.isdigit():
             continue
         work_no = int(work_no_str)
-
-        bill = Bill(row['发生额'], row['发生后库余额'], row['发生时间'], bill_pos)
+        balance = row.get('发生后库余额', 0.0)
+        pay_time = row.get('发生时间') or row.get('消费时间', '')
+        expenditure = row.get('发生额') or row.get('消费金额', 0.0)
+        bill = Bill(expenditure, balance, pay_time, bill_pos)
 
         # 处理有支付信息，没有订单信息的情况
         if work_no not in order_map:
             if bill_pos in work_shop_to_pos.values():
-                name = row['姓名']
+                name = row.get('姓名') or row.get('员工姓名', '')
                 error_bills.append(ErrorBill(work_no, name, bill, bill_pos))
             continue
 
         # 只有对应卡机的支付信息可以添加
         order = order_map[work_no]
-        work_shop = order.workshop
-        order_pos = work_shop_to_pos[work_shop]
         # TODO 按卡机过滤，暂时注释
+        # work_shop = order.workshop
+        # order_pos = work_shop_to_pos[work_shop]
         # if bill_pos != order_pos:
         #     continue
         order.bills.append(bill)
